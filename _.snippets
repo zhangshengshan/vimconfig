@@ -1,0 +1,189 @@
+# Global snippets
+
+# (c) holds no legal value ;)
+snippet c)
+	`&enc[:2] == "utf" ? "©" : "(c)"` Copyright `strftime("%Y")` ${1:`g:snips_author`}. All Rights Reserved.${2}
+snippet date
+	`strftime("%Y-%m-%d")`
+
+snippet create 
+	CREATE TABLE IF NOT EXISTS ${1:MYTABLE}(
+		current_day   int
+	)
+	PARTITIONED BY ( par string)
+	;
+	ALTER TABLE $1 DROP IF EXISTS PARTITION (par= '${PARTITION_DAY}');
+	INSERT OVERWRITE TABLE $1 PARTITION (par= '${PARTITION_DAY}')
+
+snippet createmysql
+
+	CREATE TABLE ${1:TABLE_NAME} (
+	id bigint(20) unsigned NOT NULL AUTO_INCREMENT COMMENT 'key',
+	current_day int(11) unsigned NOT NULL COMMENT '',
+	role_id int(11) unsigneddd NOT NULL COMMENT '',
+	youxiao_shop_num int(11) NOT NULL COMMENT '',
+	huoyue_num int(11) NOT NULL COMMENT '',
+	PRIMARY KEY (id),
+	KEY idx_curday_rid_rlattid (current_day,role_id,role_attach_id)
+	) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8 
+
+snippet createnotpar 
+	CREATE TABLE IF NOT EXISTS ${1:MYTABLE}(
+		current_day   int
+	) ;
+	INSERT OVERWRITE TABLE $1 
+snippet select
+	select * from ${1:MYTABLE} where ${2:CONDITIOIN} 
+
+
+snippet left 
+	LEFT OUTER JOIN ${1:TABLE}  AS ${2:TABLE_ALIAS}
+	ON ${3:ORI_TABLE}.${4:FIELD} = $2.$4
+
+
+snippet right
+	RIGHT OUTER JOIN ${1:TABLE}  AS ${2:TABLE_ALIAS}
+	ON ${3:ORI_TABLE}.${4:FIELD} = $2.$4
+
+
+snippet count
+	COUNT(${1:FILED})
+
+snippet sum
+	SUM(${1:FILED})
+
+snippet if
+	IF(${1:FIELD} IS NULL,${2:0},$1) AS ${3:FIELD}
+
+snippet join
+	JOIN ${1:TABLE} AS ${2:TABLE_ALIAS}
+	ON ${3:ORI_TABLE}.${4:FIELD} = $2.$4
+
+snippet db_config
+	# the name of the task
+	task_name=${1:your_task_name}
+
+	# whether from hdfs,default true
+	is_from_hdfs=
+
+	# the reduce output, default /user/hive/warehouse/st.db/$task_name
+	dfs_from=
+
+	# partitioned when the values is true,it's $dfs_from/par=$the_day,default false
+	partitioned=${4:true}
+
+	# the DB you want to insert
+	db_name=${2:target_db_name}
+	db_name=test_statistics
+
+	# the table name
+	table_name=${3:target_table_name}
+
+	# whether use sqoop,default true
+	use_sqoop=false
+
+	# default true
+	clear_before_insert
+
+	truncate_table=true
+	# input delim,default '\t'
+	input_delim=\u0001
+
+	# text exactly match,use load,default false
+	use_load=
+
+	# if not use sqoop
+	export_fields=${5:fields}
+
+	# extra fields
+	extra_fields=
+
+	#fields to be updated on duplicate key
+	update_fields=
+
+
+	${6:#}delete_table=true
+
+
+snippet job
+	# coding: utf-8
+	import os
+	import sys
+	import datetime
+	from datetime import timedelta
+
+	JOB_HOME = os.path.dirname(os.path.realpath(__file__))
+
+	sys.path.append(JOB_HOME + "/../../conf")
+	sys.path.append(JOB_HOME + "/../../lib")
+
+	# HADOOP_HOME, SPARK_HOME 也可以通过这种方式导入
+	from path import (
+		LIB_HOME, HIVE_HOME
+	)
+	from kdt_util import safe_execute
+
+
+
+	DAY_FORMAT='%Y%m%d'
+	DAY_FORMAT_MID='%Y-%m-%d'
+
+	def main(config, partition_day, yester_day_mid, yester_day_30_mid, loaddata_only):
+		# 定义其他使用的变量
+		cmd = (
+			"%(HIVE_HOME)s/bin/hive -f %(JOB_HOME)s/%(hql_script)s.hql "
+			"--hivevar YESTER_DAY_MID=%(yester_day_mid)s "
+			"--hivevar YESTER_DAY_30_MID=%(yester_day_30_mid)s "
+			"--hivevar PARTITION_DAY=%(partition_day)s "
+		) % {
+			"HIVE_HOME": HIVE_HOME,
+			"JOB_HOME": JOB_HOME,
+			"hql_script": "ditui_stat", 
+			"yester_day_mid": yester_day_mid,
+			"yester_day_30_mid": yester_day_30_mid,
+			"partition_day": partition_day
+		}
+		if not loaddata_only:
+			safe_execute(cmd)
+		cmd = "python %(LIB_HOME)s/DbExport.py %(JOB_HOME)/%(db_config)s %(partition_day)s" % {
+			"LIB_HOME": LIB_HOME,
+			"JOB_HOME": JOB_HOME,
+			"db_config": db_config,
+			"partition_day": partition_day
+		}
+		safe_execute(cmd)
+
+
+	if __name__ == "__main__":
+		args = sys.argv[1:]
+
+		if len(args) == 0:
+			config = "db_config"
+		else:
+			config = args[0]
+		dt_yester_day = datetime.datetime.now() - datetime.timedelta(days=1)
+		print dt_yester_day
+		if len(args) > 1:
+			str_yester_day = args[1]
+			dt_yester_day = datetime.datetime.strptime(str(str_yester_day), '%Y%m%d')
+
+		# datetime 类型在此处根据dt_yester_day生成
+		dt_yester_day_30 = dt_yester_day - datetime.timedelta(days=29)
+
+		# 传递给hive的脚本的格式化字符串在此处生成
+		yester_day = dt_yester_day.strftime(DAY_FORMAT)
+		yester_day_mid = dt_yester_day.strftime(DAY_FORMAT)
+		yester_day_30 = dt_yester_day_30.strftime(DAY_FORMAT_MID)
+		yester_day_30_mid = dt_yester_day_30.strftime(DAY_FORMAT_MID)
+		partition_day=yester_day
+
+		print yester_day
+		print yester_day_mid
+		print yester_day_30
+		print yester_day_30_mid
+
+		if (len(args)) == 3:
+			loaddata_only = args[2]
+		else:
+			loaddata_only = 0
+		main(config, partition_day, yester_day_mid, yester_day_30_mid, loaddata_only)
